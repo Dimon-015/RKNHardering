@@ -19,7 +19,7 @@ set(REPRODUCIBLE_PATH_FLAGS
     "-fdebug-prefix-map=${CMAKE_BINARY_DIR}=."
 )
 add_compile_options(${REPRODUCIBLE_PATH_FLAGS})
-add_link_options("-Wl,--build-id=sha1")
+add_link_options("-Wl,--build-id=none")
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(BUILD_STATIC_LIBS ON CACHE BOOL "" FORCE)
