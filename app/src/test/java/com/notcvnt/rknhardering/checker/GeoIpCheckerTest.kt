@@ -217,6 +217,48 @@ class GeoIpCheckerTest {
         assertEquals("Hetzner Online", merged.org)
         assertEquals("AS24940", merged.asn)
         assertTrue(merged.isProxy)
+        assertEquals(1, merged.proxyVotes)
+        assertEquals(2, merged.proxyChecks)
+        assertEquals(listOf("iplocate.io"), merged.proxySources)
+    }
+
+    @Test
+    fun `mergeSnapshots counts same-ip hosting votes across extra providers`() {
+        val providers = listOf(
+            GeoIpChecker.ProviderSnapshot(
+                provider = "ipapi.is",
+                snapshot = geoSnapshot(providerIp = "157.180.123.101", isHosting = true),
+            ),
+            GeoIpChecker.ProviderSnapshot(
+                provider = "iplocate.io",
+                snapshot = geoSnapshot(providerIp = "157.180.123.101", isHosting = true),
+            ),
+            GeoIpChecker.ProviderSnapshot(
+                provider = "ipquery.io",
+                snapshot = geoSnapshot(providerIp = "157.180.123.101", isHosting = true),
+            ),
+            GeoIpChecker.ProviderSnapshot(
+                provider = "iplookup.it",
+                snapshot = geoSnapshot(providerIp = "157.180.123.101", isHosting = true),
+            ),
+            GeoIpChecker.ProviderSnapshot(
+                provider = "ipbot.com",
+                snapshot = geoSnapshot(providerIp = "157.180.123.101", isHosting = true),
+            ),
+        )
+
+        val merged = GeoIpChecker.mergeSnapshots(
+            baseProvider = providers.first(),
+            providers = providers,
+        )
+
+        assertTrue(merged.isHosting)
+        assertEquals(5, merged.hostingVotes)
+        assertEquals(5, merged.hostingChecks)
+        assertEquals(
+            listOf("ipapi.is", "iplocate.io", "ipquery.io", "iplookup.it", "ipbot.com"),
+            merged.hostingSources,
+        )
     }
 
     @Test
@@ -293,6 +335,36 @@ class GeoIpCheckerTest {
     }
 
     @Test
+    fun `evaluate uses available proxy checks in description`() {
+        val result = GeoIpChecker.evaluate(
+            context,
+            GeoIpChecker.GeoIpSnapshot(
+                ip = "203.0.113.101",
+                country = "Finland",
+                countryCode = "FI",
+                isp = "Hetzner Online GmbH",
+                org = "Hetzner Online GmbH",
+                asn = "AS24940 Hetzner Online GmbH",
+                isProxy = true,
+                isHosting = false,
+                hostingVotes = 0,
+                hostingChecks = 3,
+                hostingSources = emptyList(),
+                proxyVotes = 2,
+                proxyChecks = 3,
+                proxySources = listOf("ipquery.io", "iplookup.it"),
+            ),
+        )
+
+        assertTrue(
+            result.findings.any {
+                it.description == context.getString(R.string.checker_geo_proxy_db, context.getString(R.string.checker_yes)) +
+                    " (2/3: ipquery.io, iplookup.it)"
+            },
+        )
+    }
+
+    @Test
     fun `no provider result is undetected and not error`() {
         val result = GeoIpChecker.noProviderResult(
             context.getString(R.string.checker_geo_error_no_provider),
@@ -356,5 +428,25 @@ class GeoIpCheckerTest {
         assertTrue(facts!!.fetchError)
         assertNull(facts.ip)
         assertNull(facts.countryCode)
+    }
+
+    private fun geoSnapshot(
+        providerIp: String,
+        isHosting: Boolean,
+        isProxy: Boolean = false,
+    ): GeoIpChecker.GeoIpSnapshot {
+        return GeoIpChecker.GeoIpSnapshot(
+            ip = providerIp,
+            country = "Finland",
+            countryCode = "FI",
+            isp = "Hetzner Online GmbH",
+            org = "Hetzner Online GmbH",
+            asn = "AS24940 Hetzner Online GmbH",
+            isProxy = isProxy,
+            isHosting = isHosting,
+            hostingVotes = 0,
+            hostingChecks = 0,
+            hostingSources = emptyList(),
+        )
     }
 }

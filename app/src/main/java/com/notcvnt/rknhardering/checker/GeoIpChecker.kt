@@ -14,10 +14,12 @@ import com.notcvnt.rknhardering.network.DnsResolverConfig
 import com.notcvnt.rknhardering.network.ResolverNetworkStack
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.net.URLEncoder
 
 object GeoIpChecker {
 
@@ -37,6 +39,9 @@ object GeoIpChecker {
         val hostingVotes: Int,
         val hostingChecks: Int,
         val hostingSources: List<String>,
+        val proxyVotes: Int = 0,
+        val proxyChecks: Int = 0,
+        val proxySources: List<String> = emptyList(),
     )
 
     internal data class ProviderSnapshot(
@@ -46,10 +51,16 @@ object GeoIpChecker {
 
     private const val IPAPIIS_PROVIDER = "ipapi.is"
     private const val IPLOCATE_PROVIDER = "iplocate.io"
+    private const val IPQUERY_PROVIDER = "ipquery.io"
+    private const val IPLOOKUP_PROVIDER = "iplookup.it"
+    private const val IPBOT_PROVIDER = "ipbot.com"
 
     private const val IPAPIIS_URL = "https://api.ipapi.is/"
 
     private const val IPLOCATE_URL = "https://www.iplocate.io/api/lookup"
+    private const val IPQUERY_URL = "https://api.ipquery.io/"
+    private const val IPLOOKUP_URL = "https://www.iplookup.it"
+    private const val IPBOT_URL = "https://api.ipbot.com/"
 
     suspend fun check(
         context: Context,
@@ -60,15 +71,34 @@ object GeoIpChecker {
             coroutineScope {
                 val ipapiIsDeferred = async { fetchWithRetries { fetchIpapiIs(resolverConfig) } }
                 val iplocateDeferred = async { fetchWithRetries { fetchIplocate(resolverConfig) } }
+                val ipqueryDeferred = async { fetchWithRetries { fetchIpquery(resolverConfig) } }
+                val iplookupDeferred = async { fetchWithRetries { fetchIplookup(resolverConfig) } }
+                val ipbotDeferred = async { fetchWithRetries { fetchIpbot(resolverConfig) } }
 
                 val ipapiIsResult = ipapiIsDeferred.await()
                 val iplocateResult = iplocateDeferred.await()
+                val ipqueryResult = ipqueryDeferred.await()
+                val iplookupResult = iplookupDeferred.await()
+                val ipbotResult = ipbotDeferred.await()
 
-                val providers = listOfNotNull(ipapiIsResult, iplocateResult)
-                val baseProvider = ipapiIsResult ?: iplocateResult
+                val seedProviders = listOfNotNull(
+                    ipapiIsResult,
+                    iplocateResult,
+                    ipqueryResult,
+                    iplookupResult,
+                    ipbotResult,
+                )
+                val seedProvider = seedProviders.firstOrNull()
                     ?: return@coroutineScope noProviderResult(
                         context.getString(R.string.checker_geo_error_no_provider),
                     )
+                val explicitProviders = fetchSpecificIpProviders(
+                    resolverConfig = resolverConfig,
+                    ip = seedProvider.snapshot.ip,
+                )
+                val providers = mergeProviderLists(explicitProviders.ifEmpty { seedProviders }, seedProviders)
+                val baseProvider = providers.firstOrNull { it.provider == seedProvider.provider }
+                    ?: seedProvider
 
                 evaluate(
                     context = context,
@@ -81,6 +111,24 @@ object GeoIpChecker {
         } catch (e: Exception) {
             rethrowIfCancellation(e, executionContext)
             errorResult(context.getString(R.string.checker_geo_error_fetch, e.message))
+        }
+    }
+
+    private suspend fun fetchSpecificIpProviders(
+        resolverConfig: DnsResolverConfig,
+        ip: String,
+    ): List<ProviderSnapshot> {
+        if (!isMeaningfulField(ip)) return emptyList()
+        return coroutineScope {
+            listOf(
+                async { fetchWithRetries { fetchIpapiIs(resolverConfig, ip) } },
+                async { fetchWithRetries { fetchIplocate(resolverConfig, ip) } },
+                async { fetchWithRetries { fetchIpquery(resolverConfig, ip) } },
+                async { fetchWithRetries { fetchIplookup(resolverConfig, ip) } },
+                async { fetchWithRetries { fetchIpbot(resolverConfig, ip) } },
+            )
+                .awaitAll()
+                .filterNotNull()
         }
     }
 
@@ -106,9 +154,12 @@ object GeoIpChecker {
         return null
     }
 
-    private fun fetchIpapiIs(resolverConfig: DnsResolverConfig): ProviderSnapshot? {
+    private fun fetchIpapiIs(resolverConfig: DnsResolverConfig, ip: String? = null): ProviderSnapshot? {
         return try {
-            val json = fetchJson(IPAPIIS_URL, resolverConfig)
+            val json = fetchJson(
+                url = ip?.let { "$IPAPIIS_URL?q=${urlEncode(it)}" } ?: IPAPIIS_URL,
+                resolverConfig = resolverConfig,
+            )
             if (!json.has("ip")) return null
 
             val location = json.optJSONObject("location")
@@ -159,9 +210,12 @@ object GeoIpChecker {
         }
     }
 
-    private fun fetchIplocate(resolverConfig: DnsResolverConfig): ProviderSnapshot? {
+    private fun fetchIplocate(resolverConfig: DnsResolverConfig, ip: String? = null): ProviderSnapshot? {
         return try {
-            val json = fetchJson(IPLOCATE_URL, resolverConfig)
+            val json = fetchJson(
+                url = ip?.let { "$IPLOCATE_URL/${urlEncode(it)}" } ?: IPLOCATE_URL,
+                resolverConfig = resolverConfig,
+            )
             if (!json.has("ip")) return null
 
             val privacy = json.optJSONObject("privacy")
@@ -206,11 +260,167 @@ object GeoIpChecker {
         }
     }
 
+    private fun fetchIpquery(resolverConfig: DnsResolverConfig, ip: String? = null): ProviderSnapshot? {
+        return try {
+            val json = fetchJson(
+                url = ip?.let { "$IPQUERY_URL${urlEncode(it)}" } ?: "${IPQUERY_URL}?format=json",
+                resolverConfig = resolverConfig,
+            )
+            if (!json.has("ip")) return null
+
+            val location = json.optJSONObject("location")
+            val isp = json.optJSONObject("isp")
+            val risk = json.optJSONObject("risk")
+
+            ProviderSnapshot(
+                provider = IPQUERY_PROVIDER,
+                snapshot = GeoIpSnapshot(
+                    ip = firstMeaningful(json.optString("ip"), default = "N/A"),
+                    country = firstMeaningful(location?.optString("country"), default = "N/A"),
+                    countryCode = firstMeaningful(location?.optString("country_code"), default = ""),
+                    isp = firstMeaningful(
+                        isp?.optString("isp"),
+                        isp?.optString("org"),
+                        default = "N/A",
+                    ),
+                    org = firstMeaningful(
+                        isp?.optString("org"),
+                        isp?.optString("isp"),
+                        default = "N/A",
+                    ),
+                    asn = formatAsn(
+                        code = isp?.optString("asn"),
+                        name = firstMeaningful(
+                            isp?.optString("org"),
+                            isp?.optString("isp"),
+                            default = "N/A",
+                        ),
+                    ),
+                    isProxy = (risk?.optBoolean("is_proxy", false) == true) ||
+                        (risk?.optBoolean("is_vpn", false) == true) ||
+                        (risk?.optBoolean("is_tor", false) == true),
+                    isHosting = risk?.optBoolean("is_datacenter", false) == true,
+                    hostingVotes = 0,
+                    hostingChecks = 0,
+                    hostingSources = emptyList(),
+                ),
+            )
+        } catch (error: Exception) {
+            rethrowIfCancellation(error)
+            null
+        }
+    }
+
+    private fun fetchIplookup(resolverConfig: DnsResolverConfig, ip: String? = null): ProviderSnapshot? {
+        return try {
+            val json = fetchJson(
+                url = ip?.let { "$IPLOOKUP_URL/ip/${urlEncode(it)}" } ?: "$IPLOOKUP_URL/json",
+                resolverConfig = resolverConfig,
+            )
+            if (!json.has("ip")) return null
+
+            val geo = json.optJSONObject("geo")
+            val network = json.optJSONObject("network")
+            val privacy = json.optJSONObject("privacy")
+
+            ProviderSnapshot(
+                provider = IPLOOKUP_PROVIDER,
+                snapshot = GeoIpSnapshot(
+                    ip = firstMeaningful(json.optString("ip"), default = "N/A"),
+                    country = firstMeaningful(geo?.optString("country"), default = "N/A"),
+                    countryCode = firstMeaningful(geo?.optString("country_code"), default = ""),
+                    isp = firstMeaningful(
+                        network?.optString("isp"),
+                        network?.optString("org"),
+                        default = "N/A",
+                    ),
+                    org = firstMeaningful(
+                        network?.optString("org"),
+                        network?.optString("isp"),
+                        default = "N/A",
+                    ),
+                    asn = formatAsn(
+                        code = network?.opt("asn")?.toString(),
+                        name = firstMeaningful(
+                            network?.optString("org"),
+                            network?.optString("isp"),
+                            default = "N/A",
+                        ),
+                    ),
+                    isProxy = (privacy?.optBoolean("proxy", false) == true) ||
+                        (privacy?.optBoolean("vpn", false) == true) ||
+                        (privacy?.optBoolean("tor", false) == true),
+                    isHosting = privacy?.optBoolean("hosting", false) == true,
+                    hostingVotes = 0,
+                    hostingChecks = 0,
+                    hostingSources = emptyList(),
+                ),
+            )
+        } catch (error: Exception) {
+            rethrowIfCancellation(error)
+            null
+        }
+    }
+
+    private fun fetchIpbot(resolverConfig: DnsResolverConfig, ip: String? = null): ProviderSnapshot? {
+        return try {
+            val json = fetchJson(
+                url = ip?.let { "$IPBOT_URL${urlEncode(it)}" } ?: IPBOT_URL,
+                resolverConfig = resolverConfig,
+            )
+            if (!json.has("ip")) return null
+
+            val location = json.optJSONObject("location")
+            val network = json.optJSONObject("network")
+            val security = json.optJSONObject("security")
+            val usageType = security?.optString("usage_type")?.trim()?.uppercase()
+            val radarType = (network?.opt("radar") as? String)?.trim()?.lowercase()
+            val threatLists = security?.optJSONArray("threat_lists")
+            val proxyThreat = threatLists.containsAny("proxy", "proxies", "vpn", "tor")
+
+            ProviderSnapshot(
+                provider = IPBOT_PROVIDER,
+                snapshot = GeoIpSnapshot(
+                    ip = firstMeaningful(json.optString("ip"), default = "N/A"),
+                    country = firstMeaningful(location?.optString("country"), default = "N/A"),
+                    countryCode = firstMeaningful(location?.optString("country_code"), default = ""),
+                    isp = firstMeaningful(
+                        network?.optString("org"),
+                        default = "N/A",
+                    ),
+                    org = firstMeaningful(
+                        network?.optString("org"),
+                        default = "N/A",
+                    ),
+                    asn = formatAsn(
+                        code = network?.optString("asn"),
+                        name = firstMeaningful(network?.optString("org"), default = "N/A"),
+                    ),
+                    isProxy = (security?.optBoolean("is_proxy", false) == true) ||
+                        proxyThreat ||
+                        radarType == "vpn" ||
+                        radarType == "proxy" ||
+                        radarType == "tor",
+                    isHosting = (security?.optBoolean("is_datacenter", false) == true) ||
+                        usageType == "DCH" ||
+                        radarType == "datacenter",
+                    hostingVotes = 0,
+                    hostingChecks = 0,
+                    hostingSources = emptyList(),
+                ),
+            )
+        } catch (error: Exception) {
+            rethrowIfCancellation(error)
+            null
+        }
+    }
+
     private fun fetchJson(url: String, resolverConfig: DnsResolverConfig): JSONObject {
         val executionContext = ScanExecutionContext.currentOrDefault()
         val response = ResolverNetworkStack.execute(
             url = url,
             method = "GET",
+            headers = mapOf("Accept" to "application/json"),
             timeoutMs = GEOIP_TIMEOUT_MS,
             config = resolverConfig,
             cancellationSignal = executionContext.cancellationSignal,
@@ -244,6 +454,11 @@ object GeoIpChecker {
         val hostingSources = compatibleProviders
             .filter { it.snapshot.isHosting }
             .map { it.provider }
+        val proxyVotes = compatibleProviders.count { it.snapshot.isProxy }
+        val proxyChecks = compatibleProviders.size
+        val proxySources = compatibleProviders
+            .filter { it.snapshot.isProxy }
+            .map { it.provider }
 
         return GeoIpSnapshot(
             ip = pickField(orderedForFill) { it.snapshot.ip },
@@ -259,6 +474,9 @@ object GeoIpChecker {
             hostingVotes = hostingVotes,
             hostingChecks = hostingChecks,
             hostingSources = hostingSources,
+            proxyVotes = proxyVotes,
+            proxyChecks = proxyChecks,
+            proxySources = proxySources,
         )
     }
 
@@ -310,7 +528,12 @@ object GeoIpChecker {
         addGeoFinding(
             findings = findings,
             evidence = evidence,
-            description = context.getString(R.string.checker_geo_proxy_db, if (snapshot.isProxy) yesStr else noStr),
+            description = buildVoteDescription(
+                prefix = context.getString(R.string.checker_geo_proxy_db, if (snapshot.isProxy) yesStr else noStr),
+                votes = snapshot.proxyVotes,
+                checks = snapshot.proxyChecks,
+                sources = snapshot.proxySources,
+            ),
             detected = snapshot.isProxy,
         )
 
@@ -383,6 +606,16 @@ object GeoIpChecker {
         return compatibleProviders.any { it.snapshot.isProxy }
     }
 
+    private fun mergeProviderLists(
+        primary: List<ProviderSnapshot>,
+        fallback: List<ProviderSnapshot>,
+    ): List<ProviderSnapshot> {
+        val merged = LinkedHashMap<String, ProviderSnapshot>()
+        primary.forEach { merged[it.provider] = it }
+        fallback.forEach { merged.putIfAbsent(it.provider, it) }
+        return merged.values.toList()
+    }
+
     private fun pickField(
         providers: List<ProviderSnapshot>,
         default: String = "N/A",
@@ -428,5 +661,35 @@ object GeoIpChecker {
 
     private fun isMeaningfulField(value: String?): Boolean {
         return !value.isNullOrBlank() && !value.equals("N/A", ignoreCase = true)
+    }
+
+    private fun buildVoteDescription(
+        prefix: String,
+        votes: Int,
+        checks: Int,
+        sources: List<String>,
+    ): String = buildString {
+        append(prefix)
+        if (checks > 0) {
+            append(" ($votes/$checks")
+            if (sources.isNotEmpty()) {
+                append(": ")
+                append(sources.joinToString(", "))
+            }
+            append(")")
+        }
+    }
+
+    private fun org.json.JSONArray?.containsAny(vararg candidates: String): Boolean {
+        if (this == null) return false
+        val normalizedCandidates = candidates.map { it.lowercase() }.toSet()
+        for (index in 0 until length()) {
+            if (optString(index).trim().lowercase() in normalizedCandidates) return true
+        }
+        return false
+    }
+
+    private fun urlEncode(value: String): String {
+        return URLEncoder.encode(value, Charsets.UTF_8.name())
     }
 }
