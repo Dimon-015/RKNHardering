@@ -23,6 +23,7 @@ object IfconfigClient {
         IpEndpointSpec("https://ifconfig.me/ip", IpEndpointFamilyHint.IPV4),
         IpEndpointSpec("https://checkip.amazonaws.com", IpEndpointFamilyHint.IPV4),
         IpEndpointSpec("https://ip.mail.ru", IpEndpointFamilyHint.IPV4),
+        IpEndpointSpec("https://ipv4-internet.yandex.net/api/v0/ip", IpEndpointFamilyHint.IPV4),
         IpEndpointSpec("https://api-ipv4.ip.sb/ip", IpEndpointFamilyHint.IPV4),
         IpEndpointSpec("https://api4.ipify.org", IpEndpointFamilyHint.IPV4),
         IpEndpointSpec("https://api6.ipify.org", IpEndpointFamilyHint.IPV6),
