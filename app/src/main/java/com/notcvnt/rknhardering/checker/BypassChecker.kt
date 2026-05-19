@@ -3,7 +3,7 @@ package com.notcvnt.rknhardering.checker
 import android.content.Context
 import com.notcvnt.rknhardering.LocalProxyOwnerFormatter
 import com.notcvnt.rknhardering.R
-import com.notcvnt.rknhardering.TunProbeDiagnosticsFormatter
+import com.notcvnt.rknhardering.probe.TunProbeDiagnosticsFormatter
 import com.notcvnt.rknhardering.model.BypassResult
 import com.notcvnt.rknhardering.model.EvidenceConfidence
 import com.notcvnt.rknhardering.model.EvidenceItem

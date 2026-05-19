@@ -20,7 +20,9 @@ import com.notcvnt.rknhardering.model.IpComparisonResult
 import com.notcvnt.rknhardering.model.IpCheckerResponse
 import com.notcvnt.rknhardering.model.IpCheckerScope
 import com.notcvnt.rknhardering.model.LocalProxyOwner
+import com.notcvnt.rknhardering.model.ExposureStatus
 import com.notcvnt.rknhardering.model.Verdict
+import com.notcvnt.rknhardering.model.VerdictNarrativeBuilder
 import com.notcvnt.rknhardering.probe.OperatorWhitelistProbeResult
 import com.notcvnt.rknhardering.probe.ProxyEndpoint
 import com.notcvnt.rknhardering.probe.ProxyType

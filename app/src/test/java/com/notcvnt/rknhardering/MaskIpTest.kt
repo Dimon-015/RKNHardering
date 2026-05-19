@@ -1,5 +1,7 @@
 package com.notcvnt.rknhardering
 
+import com.notcvnt.rknhardering.util.maskIp
+import com.notcvnt.rknhardering.util.maskIpsInText
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

@@ -1,16 +1,8 @@
-package com.notcvnt.rknhardering
+package com.notcvnt.rknhardering.model
 
 import android.content.Context
-import com.notcvnt.rknhardering.model.BypassResult
-import com.notcvnt.rknhardering.model.CallTransportLeakResult
-import com.notcvnt.rknhardering.model.CallTransportNetworkPath
-import com.notcvnt.rknhardering.model.CallTransportProbeKind
-import com.notcvnt.rknhardering.model.CallTransportService
-import com.notcvnt.rknhardering.model.CallTransportStatus
-import com.notcvnt.rknhardering.model.CategoryResult
-import com.notcvnt.rknhardering.model.CheckResult
-import com.notcvnt.rknhardering.model.EvidenceSource
-import com.notcvnt.rknhardering.model.Verdict
+import com.notcvnt.rknhardering.LocalProxyOwnerFormatter
+import com.notcvnt.rknhardering.R
 import com.notcvnt.rknhardering.probe.XrayOutboundSummary
 
 enum class ExposureStatus {

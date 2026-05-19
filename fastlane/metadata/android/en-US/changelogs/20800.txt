@@ -4,3 +4,5 @@ DNS: automatic fallback to Yandex DoH (77.88.8.8) after three consecutive system
 JSON/Markdown/Debug exports extended with the operator_whitelist section.
 Added Telegram channel @RKNHardering link in settings and README (#68).
 Compiler warning cleanup: removed dead parameters and variables, migrated deprecated ConnectivityManager.defaultProxy to LinkProperties.httpProxy.
+Dead code removal: obsolete NativeCurlBridge.execute(String) overload and legacy launcher icons (minSdk=26 uses adaptive icons).
+Structural refactor: export formatters moved to the export subpackage, VerdictNarrative to model, TunProbeDiagnosticsFormatter to probe; deduplicated network interface patterns (also fixed missed dummy-interface detection in IndirectSignsChecker).

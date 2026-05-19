@@ -12,6 +12,7 @@ import com.notcvnt.rknhardering.probe.TunProbeDiagnostics
 import com.notcvnt.rknhardering.probe.TunProbeEngine
 import com.notcvnt.rknhardering.probe.TunProbeModeOverride
 import com.notcvnt.rknhardering.probe.TunProbePathDiagnostics
+import com.notcvnt.rknhardering.probe.TunProbeDiagnosticsFormatter
 import com.notcvnt.rknhardering.probe.TunProbeResolveStrategy
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

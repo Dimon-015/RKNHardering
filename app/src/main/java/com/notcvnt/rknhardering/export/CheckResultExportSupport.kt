@@ -1,5 +1,7 @@
-package com.notcvnt.rknhardering
+package com.notcvnt.rknhardering.export
 
+import com.notcvnt.rknhardering.util.maskIp
+import com.notcvnt.rknhardering.util.maskInfoValue
 import com.notcvnt.rknhardering.model.Verdict
 import java.text.SimpleDateFormat
 import java.util.Date

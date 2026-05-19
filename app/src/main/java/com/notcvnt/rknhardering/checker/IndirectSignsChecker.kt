@@ -1,4 +1,4 @@
-package com.notcvnt.rknhardering.checker
+﻿package com.notcvnt.rknhardering.checker
 
 import android.content.Context
 import android.net.ConnectivityManager
@@ -15,6 +15,7 @@ import com.notcvnt.rknhardering.model.EvidenceSource
 import com.notcvnt.rknhardering.model.Finding
 import com.notcvnt.rknhardering.network.DnsResolverConfig
 import com.notcvnt.rknhardering.network.NetworkInterfaceNameNormalizer
+import com.notcvnt.rknhardering.network.NetworkInterfacePatterns
 import com.notcvnt.rknhardering.probe.LocalSocketInspector
 import com.notcvnt.rknhardering.probe.LocalSocketListener
 import com.notcvnt.rknhardering.vpn.VpnAppCatalog
@@ -37,7 +38,7 @@ data class TunInterfaceInfo(
 
 object IndirectSignsChecker {
 
-    private data class SignalOutcome(
+    internal data class SignalOutcome(
         val detected: Boolean = false,
         val needsReview: Boolean = false,
     )
@@ -115,25 +116,6 @@ object IndirectSignsChecker {
         val diagnostics: CallTransportPerformanceDiagnostics? = null,
     )
 
-    private val VPN_INTERFACE_PATTERNS = listOf(
-        Regex("^tun\\d+"),
-        Regex("^tap\\d+"),
-        Regex("^wg\\d+"),
-        Regex("^ppp\\d+"),
-    )
-
-    private val IPSEC_INTERFACE_PATTERN = Regex("^ipsec.*")
-
-    private val STANDARD_INTERFACES = listOf(
-        Regex("^wlan.*"),
-        Regex("^rmnet.*"),
-        Regex("^seth.*"),   // LTE interface on select Qualcomm/MediaTek devices (e.g. seth_lte0)
-        Regex("^eth.*"),
-        Regex("^lo$"),
-        Regex("^ccmni.*"),
-        Regex("^ccemni.*"),
-    )
-
     private val KNOWN_PUBLIC_RESOLVERS = setOf(
         "1.1.1.1", "1.0.0.1",
         "8.8.8.8", "8.8.4.4",
@@ -182,7 +164,7 @@ object IndirectSignsChecker {
         findings += networkSnapshots
             .mapNotNull { snapshot ->
                 snapshot.interfaceName
-                    ?.takeIf(::isIpsecInterface)
+                    ?.takeIf(NetworkInterfacePatterns::isIpsecInterface)
                     ?.let { buildIpsecDiagnostics(context, it, snapshot) }
             }
             .flatten()
@@ -505,11 +487,11 @@ object IndirectSignsChecker {
             for (route in defaultRoutes) {
                 val iface = route.interfaceName
                 val routeClass = classifyTunnel(iface, snapshotByInterface.snapshotFor(iface))
-                if ((iface != null && isStandardInterface(iface) && snapshotClass != TunnelClass.CONFIRMED_VPN) ||
+                if ((iface != null && NetworkInterfacePatterns.isStandardInterface(iface) && snapshotClass != TunnelClass.CONFIRMED_VPN) ||
                     routeClass == TunnelClass.CARRIER_IMS_IPSEC ||
                     routeClass == TunnelClass.UNKNOWN_IPSEC
                 ) {
-                    if (iface != null && isStandardInterface(iface)) {
+                    if (iface != null && NetworkInterfacePatterns.isStandardInterface(iface)) {
                         findings.add(
                             Finding(
                                 context.getString(R.string.checker_indirect_default_route_standard, iface),
@@ -573,7 +555,7 @@ object IndirectSignsChecker {
         val procDefaultInterfaces = collectProcDefaultRouteInterfaces()
         if (snapshotsWithRoutes.none { snapshot -> snapshot.routes.any { it.isDefault } } && procDefaultInterfaces.isNotEmpty()) {
             for (iface in procDefaultInterfaces) {
-                if (isStandardInterface(iface)) {
+                if (NetworkInterfacePatterns.isStandardInterface(iface)) {
                     findings.add(
                         Finding(
                             context.getString(R.string.checker_indirect_proc_default_route_standard, iface),
@@ -617,7 +599,7 @@ object IndirectSignsChecker {
         val hasUnderlyingDefaultRoute = snapshotsWithRoutes.any { snapshot ->
             classifyTunnel(snapshot.interfaceName, snapshot) != TunnelClass.CONFIRMED_VPN &&
                 snapshot.routes.any { route ->
-                    route.isDefault && route.interfaceName != null && isStandardInterface(route.interfaceName)
+                    route.isDefault && route.interfaceName != null && NetworkInterfacePatterns.isStandardInterface(route.interfaceName)
                 }
         }
         if (hasVpnRoutes && hasUnderlyingDefaultRoute) {
@@ -935,31 +917,13 @@ object IndirectSignsChecker {
         }
     }
 
-    private fun isStandardInterface(name: String?): Boolean {
-        val canonicalName = NetworkInterfaceNameNormalizer.canonicalName(name)
-        if (canonicalName.isNullOrBlank()) return false
-        return STANDARD_INTERFACES.any { it.matches(canonicalName) }
-    }
-
-    private fun isVpnInterface(name: String?): Boolean {
-        val canonicalName = NetworkInterfaceNameNormalizer.canonicalName(name)
-        if (canonicalName.isNullOrBlank()) return false
-        return VPN_INTERFACE_PATTERNS.any { it.matches(canonicalName) }
-    }
-
-    private fun isIpsecInterface(name: String?): Boolean {
-        val canonicalName = NetworkInterfaceNameNormalizer.canonicalName(name)
-        if (canonicalName.isNullOrBlank()) return false
-        return IPSEC_INTERFACE_PATTERN.matches(canonicalName)
-    }
-
     internal fun classifyTunnel(interfaceName: String?, snapshot: NetworkSnapshot?): TunnelClass {
         if (snapshot?.hasTransportVpn == true) return TunnelClass.CONFIRMED_VPN
 
         val canonicalName = NetworkInterfaceNameNormalizer.canonicalName(interfaceName)
         if (canonicalName.isNullOrBlank()) return TunnelClass.NORMAL
-        if (isVpnInterface(canonicalName)) return TunnelClass.CONFIRMED_VPN
-        if (!isIpsecInterface(canonicalName)) return TunnelClass.NORMAL
+        if (NetworkInterfacePatterns.isVpnInterface(canonicalName)) return TunnelClass.CONFIRMED_VPN
+        if (!NetworkInterfacePatterns.isIpsecInterface(canonicalName)) return TunnelClass.NORMAL
         if (snapshot == null) return TunnelClass.UNKNOWN_IPSEC
 
         val hasVpnMarkers = !snapshot.hasNotVpn ||
@@ -1016,7 +980,7 @@ object IndirectSignsChecker {
         return when (classifyTunnel(name, snapshotByInterface.snapshotFor(name))) {
             TunnelClass.CONFIRMED_VPN -> true
             TunnelClass.CARRIER_IMS_IPSEC, TunnelClass.UNKNOWN_IPSEC -> false
-            TunnelClass.NORMAL -> !isStandardInterface(name)
+            TunnelClass.NORMAL -> !NetworkInterfacePatterns.isStandardInterface(name)
         }
     }
 
@@ -1113,186 +1077,6 @@ object IndirectSignsChecker {
         return ((addressBytes[fullBytes].toInt() xor prefixBytes[fullBytes].toInt()) and mask) == 0
     }
 
-    private fun checkDumpsysVpn(
-        context: Context,
-        findings: MutableList<Finding>,
-        evidence: MutableList<EvidenceItem>,
-        activeApps: MutableList<ActiveVpnApp>,
-    ): SignalOutcome {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return SignalOutcome()
-        return try {
-            val process = Runtime.getRuntime().exec(arrayOf("dumpsys", "vpn_management"))
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor()
-
-            if (VpnDumpsysParser.isUnavailable(output)) {
-                findings.add(Finding(context.getString(R.string.checker_indirect_dumpsys_vpn_unavailable)))
-                return SignalOutcome()
-            }
-
-            val records = VpnDumpsysParser.parseVpnManagement(output)
-                .filter { it.packageName != null || it.serviceName != null }
-            if (records.isEmpty()) {
-                findings.add(Finding(context.getString(R.string.checker_indirect_dumpsys_vpn_none)))
-                return SignalOutcome()
-            }
-
-            var detected = false
-            var needsReview = false
-            for (record in records) {
-                val signature = record.packageName?.let { VpnAppCatalog.findByPackageName(it) }
-                val metadata = VpnAppMetadataScanner.scan(
-                    context = context,
-                    packageName = record.packageName,
-                    serviceNames = listOfNotNull(record.serviceName),
-                )
-                val appLabel = VpnAppMetadataScanner.resolveAppLabel(context, record.packageName)
-                val confidence = when {
-                    signature != null -> EvidenceConfidence.HIGH
-                    record.packageName != null -> EvidenceConfidence.MEDIUM
-                    else -> EvidenceConfidence.LOW
-                }
-                val familySuffix = signature?.family?.let { " [$it]" }.orEmpty()
-                val description = buildString {
-                    append(context.getString(R.string.checker_indirect_dumpsys_vpn_line, record.rawLine))
-                    appLabel?.let { append(" ($it)") }
-                    append(familySuffix)
-                    append(VpnAppMetadataScanner.formatMetadataSuffix(metadata))
-                }
-                findings.add(
-                    Finding(
-                        description = description,
-                        detected = true,
-                        source = EvidenceSource.ACTIVE_VPN,
-                        confidence = confidence,
-                        family = signature?.family,
-                        packageName = record.packageName,
-                    ),
-                )
-                evidence.add(
-                    EvidenceItem(
-                        source = EvidenceSource.ACTIVE_VPN,
-                        detected = true,
-                        confidence = confidence,
-                        description = record.rawLine,
-                        family = signature?.family,
-                        packageName = record.packageName,
-                        kind = signature?.kind,
-                    ),
-                )
-                activeApps.add(
-                    ActiveVpnApp(
-                        packageName = record.packageName,
-                        serviceName = record.serviceName,
-                        family = signature?.family,
-                        kind = signature?.kind,
-                        source = EvidenceSource.ACTIVE_VPN,
-                        confidence = confidence,
-                        technicalMetadata = metadata,
-                    ),
-                )
-                detected = true
-                needsReview = needsReview || signature == null
-            }
-
-            SignalOutcome(detected = detected, needsReview = needsReview)
-        } catch (e: Exception) {
-            findings.add(Finding(context.getString(R.string.checker_indirect_dumpsys_vpn_error, e.message)))
-            SignalOutcome()
-        }
-    }
-
-    private fun checkDumpsysVpnService(
-        context: Context,
-        findings: MutableList<Finding>,
-        evidence: MutableList<EvidenceItem>,
-        activeApps: MutableList<ActiveVpnApp>,
-    ): SignalOutcome {
-        return try {
-            val process = Runtime.getRuntime().exec(arrayOf("dumpsys", "activity", "services", "android.net.VpnService"))
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor()
-
-            if (VpnDumpsysParser.isUnavailable(output)) {
-                findings.add(Finding(context.getString(R.string.checker_indirect_dumpsys_service_unavailable)))
-                return SignalOutcome()
-            }
-
-            val records = VpnDumpsysParser.parseVpnServices(output)
-            if (records.isEmpty()) {
-                findings.add(Finding(context.getString(R.string.checker_indirect_dumpsys_service_none)))
-                return SignalOutcome()
-            }
-
-            var detected = false
-            var needsReview = false
-            for (record in records) {
-                val signature = record.packageName?.let { VpnAppCatalog.findByPackageName(it) }
-                val metadata = VpnAppMetadataScanner.scan(
-                    context = context,
-                    packageName = record.packageName,
-                    serviceNames = listOfNotNull(record.serviceName),
-                )
-                val appLabel = VpnAppMetadataScanner.resolveAppLabel(context, record.packageName)
-                val confidence = when {
-                    signature != null -> EvidenceConfidence.HIGH
-                    record.packageName != null -> EvidenceConfidence.MEDIUM
-                    else -> EvidenceConfidence.LOW
-                }
-                val serviceDisplay = if (record.packageName != null && record.serviceName != null) {
-                    "${record.packageName}/${record.serviceName}"
-                } else {
-                    record.rawLine
-                }
-                val familySuffix = signature?.family?.let { " [$it]" }.orEmpty()
-                val description = buildString {
-                    append(context.getString(R.string.checker_indirect_dumpsys_service_active, serviceDisplay))
-                    appLabel?.let { append(" ($it)") }
-                    append(familySuffix)
-                    append(VpnAppMetadataScanner.formatMetadataSuffix(metadata))
-                }
-                findings.add(
-                    Finding(
-                        description = description,
-                        detected = true,
-                        source = EvidenceSource.ACTIVE_VPN,
-                        confidence = confidence,
-                        family = signature?.family,
-                        packageName = record.packageName,
-                    ),
-                )
-                evidence.add(
-                    EvidenceItem(
-                        source = EvidenceSource.ACTIVE_VPN,
-                        detected = true,
-                        confidence = confidence,
-                        description = serviceDisplay,
-                        family = signature?.family,
-                        packageName = record.packageName,
-                        kind = signature?.kind,
-                    ),
-                )
-                activeApps.add(
-                    ActiveVpnApp(
-                        packageName = record.packageName,
-                        serviceName = record.serviceName,
-                        family = signature?.family,
-                        kind = signature?.kind,
-                        source = EvidenceSource.ACTIVE_VPN,
-                        confidence = confidence,
-                        technicalMetadata = metadata,
-                    ),
-                )
-                detected = true
-                needsReview = needsReview || signature == null
-            }
-
-            SignalOutcome(detected = detected, needsReview = needsReview)
-        } catch (e: Exception) {
-            findings.add(Finding(context.getString(R.string.checker_indirect_dumpsys_service_error, e.message)))
-            SignalOutcome()
-        }
-    }
 
     internal fun classifyDnsAddress(addr: String): DnsClassification {
         val normalized = normalizeIpAddress(addr)
@@ -1337,13 +1121,13 @@ object IndirectSignsChecker {
             val tunIface = interfaces.firstOrNull { iface ->
                 iface.isUp &&
                     classifyTunnel(iface.name, snapshotByInterface.snapshotFor(iface.name)) == TunnelClass.CONFIRMED_VPN &&
-                    VPN_INTERFACE_PATTERNS.any { it.matches(iface.name) }
+                    NetworkInterfacePatterns.isVpnInterface(iface.name)
             }
 
             // Find default-route interface from network snapshots (standard cellular/wifi).
             val defaultRouteIface = networkSnapshots
                 .flatMap { snap -> snap.routes.filter { it.isDefault }.mapNotNull { it.interfaceName } }
-                .firstOrNull { isStandardInterface(it) }
+                .firstOrNull { NetworkInterfacePatterns.isStandardInterface(it) }
 
             TunInterfaceInfo(
                 tunInterfacePresent = tunIface != null,

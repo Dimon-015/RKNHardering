@@ -1,18 +1,12 @@
-package com.notcvnt.rknhardering
+package com.notcvnt.rknhardering.probe
 
 import android.content.Context
+import com.notcvnt.rknhardering.BuildConfig
+import com.notcvnt.rknhardering.R
 import com.notcvnt.rknhardering.checker.CheckSettings
+import com.notcvnt.rknhardering.util.maskIp
+import com.notcvnt.rknhardering.util.maskIpsInText
 import com.notcvnt.rknhardering.network.DnsResolverMode
-import com.notcvnt.rknhardering.probe.PublicIpProbeMode
-import com.notcvnt.rknhardering.probe.PublicIpProbeStatus
-import com.notcvnt.rknhardering.probe.PublicIpTransportDiagnostics
-import com.notcvnt.rknhardering.probe.TunEndpointAttempt
-import com.notcvnt.rknhardering.probe.TunProbeAttemptDiagnostics
-import com.notcvnt.rknhardering.probe.TunProbeDiagnostics
-import com.notcvnt.rknhardering.probe.TunProbeEngine
-import com.notcvnt.rknhardering.probe.TunProbeModeOverride
-import com.notcvnt.rknhardering.probe.TunProbePathDiagnostics
-import com.notcvnt.rknhardering.probe.TunProbeResolveStrategy
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

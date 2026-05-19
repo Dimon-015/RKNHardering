@@ -1,5 +1,6 @@
 package com.notcvnt.rknhardering
 
+import com.notcvnt.rknhardering.util.maskInfoValue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test

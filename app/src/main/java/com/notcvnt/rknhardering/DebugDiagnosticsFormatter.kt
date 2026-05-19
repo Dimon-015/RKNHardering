@@ -22,11 +22,15 @@ import com.notcvnt.rknhardering.model.LocalProxyOwner
 import com.notcvnt.rknhardering.model.LocalProxyCheckResult
 import com.notcvnt.rknhardering.model.MatchedVpnApp
 import com.notcvnt.rknhardering.model.VpnAppTechnicalMetadata
+import com.notcvnt.rknhardering.export.sectionStatusTag
 import com.notcvnt.rknhardering.probe.NativeInterfaceProbe
 import com.notcvnt.rknhardering.probe.NativeSignsBridge
+import com.notcvnt.rknhardering.probe.TunProbeDiagnosticsFormatter
 import com.notcvnt.rknhardering.probe.OperatorWhitelistProbeResult
 import com.notcvnt.rknhardering.probe.XrayApiScanResult
 import com.notcvnt.rknhardering.probe.XrayOutboundSummary
+import com.notcvnt.rknhardering.util.maskIp
+import com.notcvnt.rknhardering.util.maskIpsInText
 import java.net.NetworkInterface
 import java.text.SimpleDateFormat
 import java.util.Date

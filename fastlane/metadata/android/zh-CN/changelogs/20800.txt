@@ -4,3 +4,5 @@ DNS：当系统解析器连续三次失败时自动切换到 Yandex DoH（77.88.
 Markdown/JSON/Debug 导出新增 operator_whitelist 分节。
 在设置和 README 中添加 Telegram 频道 @RKNHardering 链接 (#68)。
 清理编译器警告：移除无用参数和变量，将已弃用的 ConnectivityManager.defaultProxy 迁移到 LinkProperties.httpProxy。
+移除死代码：废弃的 NativeCurlBridge.execute(String) 重载以及旧版启动器图标（minSdk=26 已使用自适应图标）。
+结构性重构：导出格式化类移至 export 子包，VerdictNarrative 移至 model，TunProbeDiagnosticsFormatter 移至 probe；消除了网络接口模式的重复（顺带修复了 IndirectSignsChecker 中遗漏的 dummy 接口检测）。
