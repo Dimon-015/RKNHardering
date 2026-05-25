@@ -836,11 +836,13 @@
     <string name="marketplace_meta_format">by %1$s · v%2$s</string>
     <string name="marketplace_install_count">%1$d installs</string>
     <string name="marketplace_action_install">Install</string>
+    <string name="marketplace_action_update">Update</string>
     <string name="marketplace_action_clone_edit">Clone &amp; edit</string>
     <string name="marketplace_preview_author">Author: %1$s</string>
     <string name="marketplace_preview_version">Version: %1$s</string>
     <string name="marketplace_install_done">Profile "%1$s" installed</string>
     <string name="marketplace_install_failed">Failed to install profile</string>
+    <string name="marketplace_install_hash_mismatch">Profile rejected: hash does not match catalog</string>
 
     <!-- Security warning -->
     <string name="security_warning_title">⚠️ Profile is not verified</string>

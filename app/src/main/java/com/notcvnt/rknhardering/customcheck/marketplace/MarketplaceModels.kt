@@ -19,4 +19,5 @@ data class MarketplaceEntry(
     val tags: List<String>,
     val createdAt: String,
     val updatedAt: String,
+    val expectedHash: String? = null,
 )

@@ -134,7 +134,8 @@ internal class SettingsMarketplaceInstallDialogFragment : BottomSheetDialogFragm
         cancel.setOnClickListener { dismiss() }
 
         lifecycleScope.launch {
-            val profile = runCatching { MarketplaceClient.fetchProfile(requireContext(), entry) }.getOrNull()
+            val fetched = runCatching { MarketplaceClient.fetchProfile(requireContext(), entry) }
+            val profile = fetched.getOrNull()
             if (profile != null) {
                 val urls = CustomCheckSerializer.extractAllUrls(profile)
                 if (urls.isEmpty()) {
@@ -150,7 +151,17 @@ internal class SettingsMarketplaceInstallDialogFragment : BottomSheetDialogFragm
                 }
                 confirm.setOnClickListener { installProfile(profile, entry) }
             } else {
-                confirm.setOnClickListener { fetchAndInstall(entry) }
+                val err = fetched.exceptionOrNull()
+                if (err is MarketplaceClient.HashMismatchException && isAdded) {
+                    Toast.makeText(
+                        requireContext(),
+                        getString(R.string.marketplace_install_hash_mismatch),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                    confirm.isEnabled = false
+                } else {
+                    confirm.setOnClickListener { fetchAndInstall(entry) }
+                }
             }
         }
     }
@@ -160,9 +171,14 @@ internal class SettingsMarketplaceInstallDialogFragment : BottomSheetDialogFragm
             runCatching {
                 val profile = MarketplaceClient.fetchProfile(requireContext(), entry)
                 installProfile(profile, entry)
-            }.onFailure {
+            }.onFailure { err ->
                 if (isAdded) {
-                    Toast.makeText(requireContext(), getString(R.string.marketplace_install_failed), Toast.LENGTH_SHORT).show()
+                    val msg = if (err is MarketplaceClient.HashMismatchException) {
+                        getString(R.string.marketplace_install_hash_mismatch)
+                    } else {
+                        getString(R.string.marketplace_install_failed)
+                    }
+                    Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
                 }
             }
         }

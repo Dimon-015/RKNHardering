@@ -796,11 +796,13 @@
     <string name="marketplace_meta_format">作者：%1$s · v%2$s</string>
     <string name="marketplace_install_count">%1$d 次安装</string>
     <string name="marketplace_action_install">安装</string>
+    <string name="marketplace_action_update">更新</string>
     <string name="marketplace_action_clone_edit">克隆并编辑</string>
     <string name="marketplace_preview_author">作者：%1$s</string>
     <string name="marketplace_preview_version">版本：%1$s</string>
     <string name="marketplace_install_done">配置文件"%1$s"已安装</string>
     <string name="marketplace_install_failed">安装配置文件失败</string>
+    <string name="marketplace_install_hash_mismatch">配置文件被拒绝：哈希与目录不匹配</string>
 
     <!-- Security warning -->
     <string name="security_warning_title">⚠️ 配置文件未经验证</string>

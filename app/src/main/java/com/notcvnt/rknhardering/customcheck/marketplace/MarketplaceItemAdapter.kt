@@ -16,11 +16,13 @@ import com.notcvnt.rknhardering.R
 internal class MarketplaceItemAdapter(
     private val onInstall: (MarketplaceEntry) -> Unit,
     private val onOpenInstalled: (MarketplaceEntry) -> Unit,
+    private val onUpdate: (MarketplaceEntry) -> Unit = {},
 ) : ListAdapter<MarketplaceItemAdapter.Item, MarketplaceItemAdapter.ViewHolder>(DIFF) {
 
     data class Item(
         val entry: MarketplaceEntry,
         val installed: Boolean,
+        val hasUpdate: Boolean = false,
     )
 
     companion object {
@@ -91,14 +93,24 @@ internal class MarketplaceItemAdapter(
             holder.badgeVerified.visibility = if (entry.verified && !entry.official) View.VISIBLE else View.GONE
         }
 
-        if (item.installed) {
-            holder.btnInstall.visibility = View.GONE
-            holder.btnInstalled.visibility = View.VISIBLE
-            holder.btnInstalled.setOnClickListener { onOpenInstalled(entry) }
-        } else {
-            holder.btnInstall.visibility = View.VISIBLE
-            holder.btnInstalled.visibility = View.GONE
-            holder.btnInstall.setOnClickListener { onInstall(entry) }
+        when {
+            item.installed && item.hasUpdate -> {
+                holder.btnInstall.visibility = View.VISIBLE
+                holder.btnInstalled.visibility = View.GONE
+                holder.btnInstall.text = ctx.getString(R.string.marketplace_action_update)
+                holder.btnInstall.setOnClickListener { onUpdate(entry) }
+            }
+            item.installed -> {
+                holder.btnInstall.visibility = View.GONE
+                holder.btnInstalled.visibility = View.VISIBLE
+                holder.btnInstalled.setOnClickListener { onOpenInstalled(entry) }
+            }
+            else -> {
+                holder.btnInstall.visibility = View.VISIBLE
+                holder.btnInstalled.visibility = View.GONE
+                holder.btnInstall.text = ctx.getString(R.string.marketplace_action_install)
+                holder.btnInstall.setOnClickListener { onInstall(entry) }
+            }
         }
     }
 

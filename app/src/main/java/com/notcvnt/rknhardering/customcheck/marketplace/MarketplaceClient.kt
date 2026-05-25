@@ -20,6 +20,9 @@ object MarketplaceClient {
     class NetworkDisabledException :
         IllegalStateException("Network requests are disabled in settings")
 
+    class HashMismatchException(val expected: String, val actual: String) :
+        IllegalStateException("Profile hash mismatch: expected=$expected actual=$actual")
+
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
@@ -49,7 +52,15 @@ object MarketplaceClient {
                 if (!response.isSuccessful) error("HTTP ${response.code}")
                 response.body?.string() ?: error("Empty response body")
             }
-            CustomCheckSerializer.deserialize(body)
+            val profile = CustomCheckSerializer.deserialize(body)
+            val expected = entry.expectedHash
+            if (expected != null) {
+                val actual = CustomCheckSerializer.canonicalHash(profile)
+                if (!actual.equals(expected, ignoreCase = true)) {
+                    throw HashMismatchException(expected = expected, actual = actual)
+                }
+            }
+            profile
         }
 
     private fun parseCatalog(json: String): MarketplaceCatalog {
@@ -80,6 +91,8 @@ object MarketplaceClient {
                         tags = tags,
                         createdAt = e.optString("created_at", ""),
                         updatedAt = e.optString("updated_at", ""),
+                        expectedHash = if (e.has("expected_hash") && !e.isNull("expected_hash"))
+                            e.getString("expected_hash").takeIf { it.isNotBlank() } else null,
                     )
                 )
             }

@@ -24,6 +24,7 @@ internal class SettingsMarketplaceFragment : Fragment(R.layout.fragment_settings
     private lateinit var adapter: MarketplaceItemAdapter
     private var fullList: List<MarketplaceEntry> = emptyList()
     private var installedIds: Set<String> = emptySet()
+    private var installedProfiles: Map<String, com.notcvnt.rknhardering.customcheck.CustomCheckProfile> = emptyMap()
     private var currentQuery: String = ""
     private var currentFilter: Filter = Filter.ALL
 
@@ -43,6 +44,10 @@ internal class SettingsMarketplaceFragment : Fragment(R.layout.fragment_settings
                     arguments = Bundle().apply { putString("profile_id", entry.id) }
                 }
                 activity.navigateTo(fragment, R.string.settings_custom_check_editor_title)
+            },
+            onUpdate = { entry ->
+                SettingsMarketplaceInstallDialogFragment.newInstance(entry)
+                    .show(childFragmentManager, "install_dialog")
             },
         )
 
@@ -98,7 +103,23 @@ internal class SettingsMarketplaceFragment : Fragment(R.layout.fragment_settings
     }
 
     private fun refreshInstalledIds() {
-        installedIds = CustomCheckRepository.getAll(requireContext()).map { it.id }.toSet()
+        val all = CustomCheckRepository.getAll(requireContext())
+        installedProfiles = all.associateBy { it.id }
+        installedIds = installedProfiles.keys
+    }
+
+    private fun hasUpdateFor(entry: MarketplaceEntry): Boolean {
+        val installed = installedProfiles[entry.id] ?: return false
+        val info = installed.marketplaceInfo
+        val expected = entry.expectedHash
+        if (expected != null && info?.originalHash != null && !info.originalHash.equals(expected, ignoreCase = true)) {
+            return true
+        }
+        if (entry.version.isNotBlank() && installed.version.isNotBlank() &&
+            entry.version != installed.version) {
+            return true
+        }
+        return false
     }
 
     private fun loadCatalog(view: View) {
@@ -156,7 +177,12 @@ internal class SettingsMarketplaceFragment : Fragment(R.layout.fragment_settings
                     entry.tags.any { it.lowercase().contains(q) }
             }
             .map { entry ->
-                MarketplaceItemAdapter.Item(entry = entry, installed = entry.id in installedIds)
+                val installed = entry.id in installedIds
+                MarketplaceItemAdapter.Item(
+                    entry = entry,
+                    installed = installed,
+                    hasUpdate = installed && hasUpdateFor(entry),
+                )
             }
             .toList()
 

@@ -798,11 +798,13 @@
     <string name="marketplace_meta_format">از %1$s · v%2$s</string>
     <string name="marketplace_install_count">%1$d نصب</string>
     <string name="marketplace_action_install">نصب</string>
+    <string name="marketplace_action_update">به‌روزرسانی</string>
     <string name="marketplace_action_clone_edit">کپی و ویرایش</string>
     <string name="marketplace_preview_author">نویسنده: %1$s</string>
     <string name="marketplace_preview_version">نسخه: %1$s</string>
     <string name="marketplace_install_done">پروفایل «%1$s» نصب شد</string>
     <string name="marketplace_install_failed">نصب پروفایل ناموفق بود</string>
+    <string name="marketplace_install_hash_mismatch">پروفایل رد شد: هش با کاتالوگ مطابقت ندارد</string>
 
     <!-- Security warning -->
     <string name="security_warning_title">⚠️ پروفایل تأیید نشده است</string>
